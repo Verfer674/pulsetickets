@@ -136,6 +136,6 @@ async def variants(inter: disnake.ApplicationCommandInteraction):
 
 
 
-token = "MTE5OTQzMTY4ODI1NDY2NDgxNQ.GqW15x.VMzQQKbW6xvzzeOp0kqB-lk185LmRqzsKeiYJM"
+token = ""
 
 bot.run(token)
