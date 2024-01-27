@@ -1,31 +1,91 @@
 import disnake
-from disnake import CategoryChannel, TextChannel, MessageInteraction
-from typing import Optional
 from disnake.ext import commands
-from disnake import Member, Role
-import os
+from typing import Optional
 
-bot = commands.Bot(command_prefix="!", help_command=None, intents=disnake.Intents.all(), activity=disnake.Game("Pulse", status = disnake.Status.online))
+bot = commands.Bot(command_prefix="!", help_command=None, intents=disnake.Intents.all(), activity=disnake.Game("Pulse", status=disnake.Status.online))
 
-class Ticket(disnake.ui.View):
+
+
+class TicketButtons(disnake.ui.View):
     def __init__(self):
         super().__init__()
         self.value = Optional[bool]
 
-    @disnake.ui.button(label="Нажми", style=disnake.ButtonStyle.blurple)
+    @disnake.ui.button(label="Отклонить", style=disnake.ButtonStyle.red)
     async def confirm(self, button: disnake.ui.Button, inter: disnake.CommandInteraction):
-        guild = inter.guild
+        if inter.author.guild_permissions.administrator:
+            embed = disnake.Embed(title="Заявка отклонена", description=f"IP: `pulsemc.ru, Тикет удалится через 2 часа`", color=disnake.Colour.red())
+            await inter.send(embed=embed)
+            await inter.author.send("Ваша заявка была отклонена")
+            self.value = True
+            self.stop()
 
-        channel = await guild.create_text_channel(f"Тикет - {inter.author.display_name}")
+    @disnake.ui.button(label="Принять", style=disnake.ButtonStyle.green)
+    async def close(self, button: disnake.ui.Button, inter: disnake.CommandInteraction):
+        if inter.author.guild_permissions.administrator:
+            embed = disnake.Embed(title="Заявка одобрена", description="IP: `pulsemc.ru, Тикет удалится через 2 часа`", color=disnake.Colour.green())
+            await inter.send(embed=embed)
 
-        embed = disnake.Embed(title="Вы создали тикет", description=f"Ticket channel: {channel.mention}",
-                              color=disnake.Colour.green())
-        await inter.send(embed=embed)
-        self.value = True
-        self.stop()
-class AnimalDropdown(disnake.ui.StringSelect):
+            await inter.user.send("Ваша заявка была отклонена")
+            self.value = True
+            self.stop()
+
+class MyModal(disnake.ui.Modal):
     def __init__(self):
+        components = [
+            disnake.ui.TextInput(
+                label="Ваш ник",
+                placeholder="Пример: Verfer_in",
+                custom_id="Ник",
+                style=disnake.TextInputStyle.short,
+                max_length=50,
+            ),
+            disnake.ui.TextInput(
+                label="Возраст",
+                placeholder="Пример: 15.",
+                custom_id="Возраст",
+                style=disnake.TextInputStyle.paragraph,
+                max_length=3,
+            ),
+            disnake.ui.TextInput(
+                label="О себе",
+                placeholder="Пример: Я уже долго играю на серверах, разбираюсь в редстоуне",
+                custom_id="О себе",
+                style=disnake.TextInputStyle.short,
+                max_length=300,
+            ),
+        ]
+        super().__init__(
+            title="Форма анкеты",
+            custom_id="Заявка",
+            components=components,
+        )
 
+    async def callback(self, inter: disnake.ModalInteraction):
+        embed = disnake.Embed(title=f"Анкета {inter.author.display_name}")
+        for key, value in inter.text_values.items():
+            embed.add_field(
+                name=key.capitalize(),
+                value=value[:1024],
+                inline=False,
+            )
+        embed.set_image(
+            url="https://cdn.discordapp.com/attachments/1193239522083885137/1200008333214634084/Anketv_1.png?ex=65c49dd9&is=65b228d9&hm=e392c4caf41efd9088ebba1cd7dd51b88c59b7de8221c047909265da3ad404ef&")
+        guild = inter.guild
+        channel = await guild.create_text_channel(f"Тикет - {inter.user.display_name}")
+
+        await channel.set_permissions(guild.default_role, view_channel=False)
+        await channel.set_permissions(inter.user, view_channel=True)
+
+        await inter.response.send_message(
+            f"{inter.author.mention}, Вы создали тикет: Зайдите на него: {channel.mention}", ephemeral=True)
+
+        view = TicketButtons()
+
+        await channel.send(embed=embed, view=view)
+
+class dropdown(disnake.ui.StringSelect):
+    def __init__(self):
         options = [
             disnake.SelectOption(label="Бесплатная проходка", description="Напиши бесплатную проходку!", emoji="😀"),
             disnake.SelectOption(label="Платная проходка", description="Напиши платную проходку!", emoji="💵"),
@@ -40,63 +100,21 @@ class AnimalDropdown(disnake.ui.StringSelect):
 
     async def callback(self, inter: disnake.MessageInteraction):
         selected_option = self.values[0]
-        guild = inter.guild
-
-        # Создаем канал
-        channel = await guild.create_text_channel(f"Тикет - {inter.author.display_name}")
-
-        # Получаем роль администратора
-        admin_role = disnake.utils.get(guild.roles, name="Администратор")
-
-        # Устанавливаем права доступа для канала
-        await channel.set_permissions(guild.default_role, view_channel=False)
-        await channel.set_permissions(inter.author, view_channel=True)
-        await inter.response.send_message(
-            f"{inter.author.mention}, Вы создали тикет: Зайдите на него: {channel.mention}", ephemeral=True)
-
-        if selected_option == "Бесплатная проходка":
-            embed1 = disnake.Embed(title="Бесплатная проходка", description="Заполни пункты ниже")
-            embed1.set_footer(text="Тест версия 1 ")
-            embed1.add_field(name="1.", value="Ваш ник", inline=False)
-            embed1.add_field(name="2.", value="Возраст", inline=False)
-            embed1.add_field(name="3.", value="Кратко о себе", inline=False)
-            embed1.set_image(
-                url="https://cdn.discordapp.com/attachments/1193239522083885137/1200008333214634084/Anketv_1.png?ex=65c49dd9&is=65b228d9&hm=e392c4caf41efd9088ebba1cd7dd51b88c59b7de8221c047909265da3ad404ef&")
-            await channel.send(embed=embed1)
-        elif selected_option == "Платная проходка":
-            embed2 = disnake.Embed(title="Платная проходка", description="Заполни пункты ниже")
-            embed2.set_footer(text="Тест версия 1 ")
-            embed2.add_field(name="1.", value="Ваш ник", inline=False)
-            embed2.add_field(name="2.", value="Возраст", inline=False)
-            embed2.set_image(
-                url="https://cdn.discordapp.com/attachments/1193239522083885137/1200008333214634084/Anketv_1.png?ex=65c49dd9&is=65b228d9&hm=e392c4caf41efd9088ebba1cd7dd51b88c59b7de8221c047909265da3ad404ef&")
-            await channel.send(embed=embed2)
-        elif selected_option == "Видео заявка":
-            embed3 = disnake.Embed(title="Видео заявка", description="Заполни пункты ниже")
-            embed3.set_footer(text="Тест версия 1 ")
-            embed3.add_field(name="1.", value="Ваш ник", inline=False)
-            embed3.add_field(name="2.", value="Возраст", inline=False)
-            embed3.add_field(name="3.", value="Ссылка на заявку, Ютуб/Диск/Файлом", inline=False)
-            embed3.set_image(
-                url="https://cdn.discordapp.com/attachments/1193239522083885137/1200008333214634084/Anketv_1.png?ex=65c49dd9&is=65b228d9&hm=e392c4caf41efd9088ebba1cd7dd51b88c59b7de8221c047909265da3ad404ef&")
-            await channel.send(embed=embed3)
-
+        if selected_option in ("Бесплатная проходка", "Платная проходка", "Видео заявка"):
+            await inter.response.send_modal(modal=MyModal())
 
 class DropDownView(disnake.ui.View):
     message: disnake.Message
 
     def __init__(self):
         super().__init__()
-        self.add_item(AnimalDropdown())
+        self.add_item(dropdown())
 
     async def on_timeout(self):
-
         for child in self.children:
             if isinstance(child, (disnake.ui.Button, disnake.ui.BaseSelect)):
                 child.disabled = True
-
         await self.message.edit(view=self)
-
 
 @bot.event
 async def on_ready():
@@ -112,30 +130,10 @@ async def on_ready():
         embed.add_field(name="3", value="Видео заявка", inline=False)
         embed.set_image(url="https://cdn.discordapp.com/attachments/1193239522083885137/1200008333214634084/Anketv_1.png?ex=65c49dd9&is=65b228d9&hm=e392c4caf41efd9088ebba1cd7dd51b88c59b7de8221c047909265da3ad404ef&")
         embed.set_footer(text="Pulse 2023-2024")
-        message = await channel.send(embed=embed, view=view)  # Отправляем сообщение в указанный канал
-        view.message = message  # Устанавливаем сообщение для представления
+        message = await channel.send(embed=embed, view=view)
+        view.message = message
     else:
         print("Канал не найден")
 
-
-
-@bot.slash_command(description="Создать тикет")
-async def ticket(inter):
-    view = Ticket()
-
-    await inter.response.send_message(f"Отправить тикет? ", view=view)
-
-@bot.slash_command()
-async def variants(inter: disnake.ApplicationCommandInteraction):
-    view = DropDownView()
-    embed = disnake.Embed(title="Выбери проходку", description="Это сделано для того чтобы отобрать только нормальных участников!", color=disnake.Colour.brand_green())
-    embed.set_image(url="https://cdn.discordapp.com/attachments/1199819700465586279/1199985118077534248/4.png?ex=65c4883a&is=65b2133a&hm=0f146617f8bcca60bc8c1563c7a0214438997d13416dea39faa87c7d6651f9db&")
-    embed.set_footer(text="Pulse 2023-2024")
-    await inter.response.send_message(embed=embed, view=view)
-    view.message = await inter.original_response()
-
-
-
 token = ""
-
 bot.run(token)
